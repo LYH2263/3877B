@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, MessageCircle, Repeat2, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, MessageCircle, Repeat2, Send, Share2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ import { fetchComments, createComment } from "@/api/discovery";
 import { parseApiError } from "@/lib/api-error";
 import { formatCount, formatRelativeTime } from "@/lib/format";
 import type { CommentItem, FeedItem } from "@/types/models";
+import { SharePanel } from "@/components/discovery/share-panel";
 
 interface FeedCardProps {
   item: FeedItem;
@@ -114,6 +115,7 @@ export function FeedCard({
   const [repostDialogOpen, setRepostDialogOpen] = useState(false);
   const [repostInput, setRepostInput] = useState("");
   const [repostSubmitting, setRepostSubmitting] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const previewImages = useMemo(() => {
     const ownImages = item.media.filter((media) => media.type === "image");
@@ -307,6 +309,9 @@ export function FeedCard({
             <Heart className={`h-4 w-4 ${item.isLiked ? "fill-brand-500 text-brand-500" : ""}`} />
             点赞 {formatCount(item.likesCount)}
           </Button>
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setShareOpen(true)}>
+            <Share2 className="h-4 w-4" /> 分享
+          </Button>
         </div>
 
         {commentsOpen ? (
@@ -414,6 +419,8 @@ export function FeedCard({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <SharePanel open={shareOpen} onOpenChange={setShareOpen} post={item} />
       </CardContent>
     </Card>
   );
