@@ -14,6 +14,7 @@ import { fail, ok } from "../../utils/response";
 import { toSingleFeedItem } from "./post.presenter";
 import { withMediaPrefix } from "../../utils/post-mapper";
 import { createNotificationIfAllowed } from "../messages/notification.service";
+import { recordSensitiveHit, validateContent } from "../sensitive-words/sensitive-word.service";
 
 const mediaDir = path.resolve(env.UPLOAD_DIR, "media");
 fs.mkdirSync(mediaDir, { recursive: true });
@@ -59,6 +60,15 @@ postsRouter.post("/", requireAuth, upload.array("media", 9), async (req, res) =>
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
     fail(res, 400, parsed.error.issues[0]?.message ?? "参数错误", parsed.error.flatten());
+    return;
+  }
+
+  const validation = validateContent(parsed.data.content);
+  if (!validation.valid) {
+    fail(res, 400, validation.message, {
+      forbiddenWords: validation.forbiddenWords,
+      warningWords: validation.warningWords
+    });
     return;
   }
 
@@ -133,7 +143,13 @@ postsRouter.post("/", requireAuth, upload.array("media", 9), async (req, res) =>
     return;
   }
 
-  ok(res, item, "发布成功", 201);
+  if (validation.warningWords.length > 0) {
+    for (const word of validation.warningWords) {
+      void recordSensitiveHit(word, "warning", "post", post.id, req.auth!.userId, parsed.data.content);
+    }
+  }
+
+  ok(res, item, validation.warningWords.length > 0 ? `发布成功（${validation.message}）` : "发布成功", 201);
 });
 
 postsRouter.get("/:postId", async (req, res) => {
@@ -240,6 +256,18 @@ postsRouter.post("/:postId/repost", requireAuth, async (req, res) => {
 
   const repostComment = parsed.data.content.trim();
 
+  let repostValidation = { valid: true as boolean, forbiddenWords: [] as string[], warningWords: [] as string[], message: "" };
+  if (repostComment) {
+    repostValidation = validateContent(repostComment);
+    if (!repostValidation.valid) {
+      fail(res, 400, repostValidation.message, {
+        forbiddenWords: repostValidation.forbiddenWords,
+        warningWords: repostValidation.warningWords
+      });
+      return;
+    }
+  }
+
   const postExists = await prisma.post.findUnique({ where: { id: postId }, select: { id: true } });
   if (!postExists) {
     fail(res, 404, "动态不存在");
@@ -329,6 +357,12 @@ postsRouter.post("/:postId/repost", requireAuth, async (req, res) => {
     return;
   }
 
+  if (repostValidation.warningWords.length > 0) {
+    for (const word of repostValidation.warningWords) {
+      void recordSensitiveHit(word, "warning", "post", createdRepostPostId, userId, repostComment);
+    }
+  }
+
   const [sourcePost, repostPost] = await Promise.all([toSingleFeedItem(postId, userId), toSingleFeedItem(createdRepostPostId, userId)]);
   if (!sourcePost || !repostPost) {
     fail(res, 404, "动态不存在");
@@ -341,7 +375,7 @@ postsRouter.post("/:postId/repost", requireAuth, async (req, res) => {
       sourcePost,
       repostPost
     },
-    "转发成功"
+    repostValidation.warningWords.length > 0 ? `转发成功（${repostValidation.message}）` : "转发成功"
   );
 });
 
@@ -416,6 +450,15 @@ postsRouter.post("/:postId/comments", requireAuth, async (req, res) => {
     return;
   }
 
+  const validation = validateContent(parsed.data.content);
+  if (!validation.valid) {
+    fail(res, 400, validation.message, {
+      forbiddenWords: validation.forbiddenWords,
+      warningWords: validation.warningWords
+    });
+    return;
+  }
+
   const comment = await prisma.$transaction(async (tx) => {
     const created = await tx.comment.create({
       data: {
@@ -457,6 +500,12 @@ postsRouter.post("/:postId/comments", requireAuth, async (req, res) => {
     return created;
   });
 
+  if (validation.warningWords.length > 0) {
+    for (const word of validation.warningWords) {
+      void recordSensitiveHit(word, "warning", "comment", comment.id, req.auth!.userId, parsed.data.content);
+    }
+  }
+
   ok(
     res,
     {
@@ -469,7 +518,7 @@ postsRouter.post("/:postId/comments", requireAuth, async (req, res) => {
         avatarUrl: withMediaPrefix(comment.user.avatarUrl)
       }
     },
-    "评论成功",
+    validation.warningWords.length > 0 ? `评论成功（${validation.message}）` : "评论成功",
     201
   );
 });

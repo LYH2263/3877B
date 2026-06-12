@@ -20,7 +20,11 @@ import { topicsRouter } from "./modules/topics/topics.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { messagesRouter } from "./modules/messages/messages.routes";
 import { leaderboardRouter } from "./modules/leaderboard/leaderboard.routes";
+import { sensitiveWordsRouter } from "./modules/sensitive-words/sensitive-words.routes";
 import { ok } from "./utils/response";
+import { initSensitiveFilter } from "./utils/sensitive-words";
+import { loadSensitiveWords } from "./modules/sensitive-words/sensitive-word.service";
+import { prisma } from "./config/prisma";
 
 const app = express();
 
@@ -51,10 +55,24 @@ app.use("/api/messages", messagesRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/creator", creatorRouter);
 app.use("/api", leaderboardRouter);
+app.use("/api/sensitive-words", sensitiveWordsRouter);
 
 app.use(notFound);
 app.use(errorHandler);
 
-app.listen(env.PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://0.0.0.0:${env.PORT}`);
-});
+async function bootstrap() {
+  try {
+    const words = await loadSensitiveWords();
+    initSensitiveFilter(words);
+    console.log(`Sensitive word filter initialized with ${words.length} words`);
+  } catch (error) {
+    console.warn("Failed to initialize sensitive word filter from database, using empty filter:", error);
+    initSensitiveFilter([]);
+  }
+
+  app.listen(env.PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${env.PORT}`);
+  });
+}
+
+void bootstrap();

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Edit3, ImagePlus, RotateCcw, Trash2, Upload, Video } from "lucide-react";
+import { Edit3, ImagePlus, RotateCcw, Trash2, Upload, Video, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -7,8 +7,8 @@ import { toast } from "sonner";
 import { createPost } from "@/api/discovery";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HighlightedTextarea } from "@/components/ui/highlighted-textarea";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ import {
 import { ImageEditor } from "@/components/image-editor/image-editor";
 import { parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { useSensitiveWords } from "@/hooks/use-sensitive-words";
 import type { FeedChannel } from "@/types/models";
 
 const composeSchema = z.object({
@@ -48,6 +49,14 @@ export default function ComposePage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const previewUrlsRef = useRef<string[]>([]);
+  const { checkText, isReady: sensitiveWordsReady } = useSensitiveWords();
+
+  const sensitiveCheck = checkText(content);
+  const hasForbiddenWords = sensitiveCheck?.hasForbidden ?? false;
+  const hasWarningWords = sensitiveCheck?.hasWarning ?? false;
+  const forbiddenWords = sensitiveCheck?.forbiddenMatches.map((m) => m.word) ?? [];
+  const warningWords = sensitiveCheck?.warningMatches.map((m) => m.word) ?? [];
+  const allMatches = [...(sensitiveCheck?.forbiddenMatches ?? []), ...(sensitiveCheck?.warningMatches ?? [])];
 
   useEffect(() => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -181,7 +190,20 @@ export default function ComposePage() {
       return;
     }
 
+    if (hasForbiddenWords) {
+      setContentError(`内容包含违规词汇：${forbiddenWords.join("、")}，请修改后再发布`);
+      toast.error("内容包含违规词汇，请修改后再发布");
+      return;
+    }
+
     setContentError(null);
+
+    if (hasWarningWords && sensitiveWordsReady) {
+      const confirmed = window.confirm(`内容包含敏感词：${warningWords.join("、")}，请注意措辞。是否继续发布？`);
+      if (!confirmed) {
+        return;
+      }
+    }
 
     const files = mediaItems.map((item) => item.file);
 
@@ -192,7 +214,7 @@ export default function ComposePage() {
       navigate("/");
     } catch (error) {
       const parsedError = parseApiError(error);
-      if (parsedError.message.includes("正文")) {
+      if (parsedError.message.includes("正文") || parsedError.message.includes("违规") || parsedError.message.includes("敏感")) {
         setContentError(parsedError.message);
       } else if (parsedError.message.includes("上传") || parsedError.message.includes("视频") || parsedError.message.includes("图片")) {
         setMediaError(parsedError.message);
@@ -228,20 +250,42 @@ export default function ComposePage() {
 
           <div className="space-y-2">
             <Label htmlFor="content">正文内容</Label>
-            <Textarea
+            <HighlightedTextarea
               id="content"
               value={content}
-              onChange={(event) => {
-                setContent(event.target.value);
+              onChange={(next) => {
+                setContent(next);
                 if (contentError) {
                   setContentError(null);
                 }
               }}
               placeholder="分享此刻想法，支持 #话题# 形式"
-              invalid={Boolean(contentError)}
-              className="min-h-[180px]"
+              invalid={Boolean(contentError) || hasForbiddenWords}
+              matches={allMatches}
+              textareaClassName="min-h-[180px]"
             />
             {contentError ? <p className="text-xs text-red-500">{contentError}</p> : null}
+            {hasForbiddenWords ? (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">内容包含违规词汇，无法发布</p>
+                  <p className="mt-0.5 text-red-600">
+                    违规词：{forbiddenWords.join("、")}
+                  </p>
+                </div>
+              </div>
+            ) : hasWarningWords ? (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div>
+                  <p className="font-medium">内容包含敏感词，请注意措辞</p>
+                  <p className="mt-0.5 text-amber-600">
+                    敏感词：{warningWords.join("、")}
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">

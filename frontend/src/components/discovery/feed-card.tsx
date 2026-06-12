@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Heart, MessageCircle, Repeat2, Send, Share2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, MessageCircle, Repeat2, Send, Share2, AlertTriangle, ShieldAlert } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -16,13 +16,15 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { HighlightedInput } from "@/components/ui/highlighted-input";
+import { HighlightedTextarea } from "@/components/ui/highlighted-textarea";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchComments, createComment } from "@/api/discovery";
 import { parseApiError } from "@/lib/api-error";
 import { formatCount, formatRelativeTime } from "@/lib/format";
 import type { CommentItem, FeedItem } from "@/types/models";
 import { SharePanel } from "@/components/discovery/share-panel";
+import { useSensitiveWords } from "@/hooks/use-sensitive-words";
 
 interface FeedCardProps {
   item: FeedItem;
@@ -116,6 +118,20 @@ export function FeedCard({
   const [repostInput, setRepostInput] = useState("");
   const [repostSubmitting, setRepostSubmitting] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const { checkText, isReady: sensitiveWordsReady } = useSensitiveWords();
+
+  const commentSensitiveCheck = checkText(commentInput);
+  const hasCommentForbidden = commentSensitiveCheck?.hasForbidden ?? false;
+  const hasCommentWarning = commentSensitiveCheck?.hasWarning ?? false;
+  const commentForbiddenWords = commentSensitiveCheck?.forbiddenMatches.map((m) => m.word) ?? [];
+  const commentWarningWords = commentSensitiveCheck?.warningMatches.map((m) => m.word) ?? [];
+  const commentAllMatches = [...(commentSensitiveCheck?.forbiddenMatches ?? []), ...(commentSensitiveCheck?.warningMatches ?? [])];
+
+  const repostSensitiveCheck = checkText(repostInput);
+  const hasRepostForbidden = repostSensitiveCheck?.hasForbidden ?? false;
+  const repostForbiddenWords = repostSensitiveCheck?.forbiddenMatches.map((m) => m.word) ?? [];
+  const repostWarningWords = repostSensitiveCheck?.warningMatches.map((m) => m.word) ?? [];
+  const repostAllMatches = [...(repostSensitiveCheck?.forbiddenMatches ?? []), ...(repostSensitiveCheck?.warningMatches ?? [])];
 
   const previewImages = useMemo(() => {
     const ownImages = item.media.filter((media) => media.type === "image");
@@ -189,6 +205,18 @@ export function FeedCard({
       return;
     }
 
+    if (hasRepostForbidden) {
+      toast.error(`短评包含违规词汇：${repostForbiddenWords.join("、")}，请修改后再转发`);
+      return;
+    }
+
+    if (repostWarningWords.length > 0 && sensitiveWordsReady) {
+      const confirmed = window.confirm(`短评包含敏感词：${repostWarningWords.join("、")}，请注意措辞。是否继续转发？`);
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setRepostSubmitting(true);
     try {
       await onRepost(item, repostInput.trim());
@@ -209,6 +237,18 @@ export function FeedCard({
     if (!isLoggedIn) {
       onRequireLogin();
       return;
+    }
+
+    if (hasCommentForbidden) {
+      toast.error(`评论包含违规词汇：${commentForbiddenWords.join("、")}，请修改后再评论`);
+      return;
+    }
+
+    if (hasCommentWarning && sensitiveWordsReady) {
+      const confirmed = window.confirm(`评论包含敏感词：${commentWarningWords.join("、")}，请注意措辞。是否继续发布？`);
+      if (!confirmed) {
+        return;
+      }
     }
 
     try {
@@ -316,16 +356,32 @@ export function FeedCard({
 
         {commentsOpen ? (
           <div className="space-y-3 rounded-xl bg-slate-50 p-3">
-            <div className="flex gap-2">
-              <Input
-                value={commentInput}
-                onChange={(event) => setCommentInput(event.target.value)}
-                placeholder={isLoggedIn ? "写下你的评论..." : "登录后可评论"}
-                disabled={!isLoggedIn}
-              />
-              <Button onClick={() => void handleCreateComment()}>
-                <Send className="h-4 w-4" />
-              </Button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <HighlightedInput
+                  value={commentInput}
+                  onChange={setCommentInput}
+                  placeholder={isLoggedIn ? "写下你的评论..." : "登录后可评论"}
+                  disabled={!isLoggedIn}
+                  invalid={hasCommentForbidden}
+                  matches={commentAllMatches}
+                  className="flex-1"
+                />
+                <Button onClick={() => void handleCreateComment()} disabled={hasCommentForbidden}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+              {hasCommentForbidden ? (
+                <div className="flex items-center gap-1.5 text-xs text-red-600">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <span>包含违规词：{commentForbiddenWords.join("、")}</span>
+                </div>
+              ) : hasCommentWarning ? (
+                <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>包含敏感词：{commentWarningWords.join("、")}，请注意措辞</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -400,13 +456,26 @@ export function FeedCard({
               <DialogDescription>可选填写短评（最多 280 字），发布后会生成一条新的转发动态。</DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
-              <Textarea
+              <HighlightedTextarea
                 value={repostInput}
-                onChange={(event) => setRepostInput(event.target.value)}
+                onChange={setRepostInput}
                 maxLength={280}
-                className="min-h-[120px]"
                 placeholder="说点什么吧（可选）"
+                invalid={hasRepostForbidden}
+                matches={repostAllMatches}
+                textareaClassName="min-h-[120px]"
               />
+              {hasRepostForbidden ? (
+                <div className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <span>包含违规词：{repostForbiddenWords.join("、")}，无法转发</span>
+                </div>
+              ) : repostWarningWords.length > 0 ? (
+                <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span>包含敏感词：{repostWarningWords.join("、")}，请注意措辞</span>
+                </div>
+              ) : null}
               <p className="text-right text-xs text-slate-500">{repostInput.length}/280</p>
             </div>
             <DialogFooter>

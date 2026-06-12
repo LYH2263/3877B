@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { FeedChannel, MediaType, PrismaClient } from "@prisma/client";
+import { FeedChannel, MediaType, PrismaClient, SensitiveWordLevel } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -243,6 +243,20 @@ async function main() {
         isRead: false,
         createdAt: minutesAgo(10)
       }
+    ]
+  });
+
+  await prisma.sensitiveWord.createMany({
+    data: [
+      { word: "违禁词测试", level: SensitiveWordLevel.forbidden, category: "测试" },
+      { word: "违规示例", level: SensitiveWordLevel.forbidden, category: "测试" },
+      { word: "禁止发布", level: SensitiveWordLevel.forbidden, category: "测试" },
+      { word: "敏感提示", level: SensitiveWordLevel.warning, category: "提示" },
+      { word: "请注意", level: SensitiveWordLevel.warning, category: "提示" },
+      { word: "广告", level: SensitiveWordLevel.warning, category: "营销" },
+      { word: "加微信", level: SensitiveWordLevel.forbidden, category: "营销" },
+      { word: "刷单", level: SensitiveWordLevel.forbidden, category: "违规" },
+      { word: "赌博", level: SensitiveWordLevel.forbidden, category: "违规" }
     ]
   });
 

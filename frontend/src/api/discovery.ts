@@ -170,3 +170,23 @@ export async function fetchTopicFeedByKeyword(keyword: string, cursor: string | 
   });
   return data.data;
 }
+
+export interface SensitiveWordItem {
+  id: number;
+  word: string;
+  level: "forbidden" | "warning";
+  category: string | null;
+  createdAt: string;
+}
+
+export interface SensitiveWordListResponse {
+  items: SensitiveWordItem[];
+  total: number;
+}
+
+export async function fetchSensitiveWords(level?: "forbidden" | "warning"): Promise<SensitiveWordItem[]> {
+  const { data } = await apiClient.get<ApiResponse<SensitiveWordListResponse>>("/sensitive-words", {
+    params: level ? { level } : undefined
+  });
+  return data.data.items;
+}
