@@ -1,5 +1,5 @@
 import { apiClient } from "@/api/client";
-import type { ApiResponse, AuthPayload } from "@/types/models";
+import type { ApiResponse, AuthPayload, OnboardingInfo } from "@/types/models";
 
 export interface RegisterInput {
   email: string;
@@ -12,18 +12,22 @@ export interface LoginInput {
   password: string;
 }
 
-export async function register(payload: RegisterInput): Promise<AuthPayload> {
-  const { data } = await apiClient.post<ApiResponse<AuthPayload>>("/auth/register", payload);
+export interface AuthWithOnboardingPayload extends AuthPayload {
+  onboarding?: OnboardingInfo;
+}
+
+export async function register(payload: RegisterInput): Promise<AuthWithOnboardingPayload> {
+  const { data } = await apiClient.post<ApiResponse<AuthWithOnboardingPayload>>("/auth/register", payload);
   return data.data;
 }
 
-export async function login(payload: LoginInput): Promise<AuthPayload> {
-  const { data } = await apiClient.post<ApiResponse<AuthPayload>>("/auth/login", payload);
+export async function login(payload: LoginInput): Promise<AuthWithOnboardingPayload> {
+  const { data } = await apiClient.post<ApiResponse<AuthWithOnboardingPayload>>("/auth/login", payload);
   return data.data;
 }
 
-export async function getMe(): Promise<AuthPayload> {
-  const { data } = await apiClient.get<ApiResponse<AuthPayload>>("/auth/me");
+export async function getMe(): Promise<AuthWithOnboardingPayload> {
+  const { data } = await apiClient.get<ApiResponse<AuthWithOnboardingPayload>>("/auth/me");
   return data.data;
 }
 

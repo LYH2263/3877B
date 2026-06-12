@@ -33,6 +33,8 @@ model User {
   bio                   String?
   followersCount        Int                  @default(0)
   followingCount        Int                  @default(0)
+  onboardingCompleted   Boolean              @default(false)
+  onboardingStep        Int                  @default(0)
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   credentials           UserCredential?
@@ -44,11 +46,13 @@ model User {
   following             Follow[]             @relation("FollowingRelation")
   followers             Follow[]             @relation("FollowerRelation")
   settings              UserSettings?
+  interests             UserInterest[]
   notificationsReceived Notification[]       @relation("NotificationTarget")
   notificationsSent     Notification[]       @relation("NotificationActor")
   recommendationItems RecommendationItem[]
 
   @@index([nickname])
+  @@index([onboardingCompleted])
 }
 
 model UserCredential {
@@ -228,4 +232,17 @@ model UserSettings {
   notifyFollow  Boolean  @default(true)
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserInterest {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  topicId   Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topicId])
+  @@index([userId])
+  @@index([topicId])
 }

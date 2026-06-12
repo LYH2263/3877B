@@ -123,8 +123,14 @@ export interface CommentItem {
   createdAt: string;
 }
 
+export interface OnboardingInfo {
+  completed: boolean;
+  currentStep: number;
+}
+
 export interface AuthPayload {
   user: User;
+  onboarding?: OnboardingInfo;
 }
 
 export interface ProfileOverviewUser {

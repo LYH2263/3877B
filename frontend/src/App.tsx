@@ -2,6 +2,8 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/context/auth-context";
 import { VideoPlaybackProvider } from "@/context/video-playback-context";
+import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import DiscoveryPage from "@/pages/index";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -31,6 +33,8 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  const { showWizard, closeWizard } = useOnboarding();
+
   return (
     <VideoPlaybackProvider>
     <div className="min-h-screen">
@@ -77,6 +81,8 @@ export default function App() {
         <Route path="/topic/:topicId" element={<TopicPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {showWizard && <OnboardingWizard onClose={closeWizard} />}
     </div>
     </VideoPlaybackProvider>
   );

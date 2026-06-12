@@ -51,55 +51,128 @@ discoveryRouter.get("/discovery/feed", async (req, res) => {
   const { channel, mode, cursor, limit } = feedQuerySchema.parse(req.query);
   const cursorPayload = parseCompositeCursor(mode, cursor);
   const channelValue = channel as FeedChannel;
+  const currentUserId = req.auth?.userId;
 
-  const orderBy =
-    mode === "trending"
-      ? [{ hotScore: "desc" as const }, { id: "desc" as const }]
-      : mode === "discover"
-        ? [{ commentsCount: "desc" as const }, { likesCount: "desc" as const }, { id: "desc" as const }]
-        : [{ id: "desc" as const }];
+  let posts: any[] = [];
 
-  const where =
-    mode === "recommended"
-      ? {
-          channel: channelValue,
-          ...(cursorPayload ? { id: { lt: cursorPayload.id } } : {})
+  if (mode === "recommended" && currentUserId) {
+    const userInterests = await prisma.userInterest.findMany({
+      where: { userId: currentUserId },
+      select: { topicId: true }
+    });
+
+    const interestTopicIds = userInterests.map((i: { topicId: number }) => i.topicId);
+
+    if (interestTopicIds.length > 0) {
+      const interestPostIds = await prisma.postTopic.findMany({
+        where: { topicId: { in: interestTopicIds } },
+        select: { postId: true },
+        distinct: ["postId"]
+      });
+
+      const interestPostIdSet = new Set(interestPostIds.map((p: { postId: number }) => p.postId));
+
+      const whereWithInterest = {
+        channel: channelValue,
+        id: {
+          in: interestPostIdSet.size > 0 ? Array.from(interestPostIdSet) : undefined,
+          ...(cursorPayload ? { lt: cursorPayload.id } : {})
         }
-      : mode === "trending"
+      };
+
+      const interestPosts = await prisma.post.findMany({
+        where: whereWithInterest,
+        orderBy: [{ id: "desc" as const }],
+        take: limit + 1,
+        include: FEED_POST_INCLUDE
+      });
+
+      if (interestPosts.length >= limit) {
+        posts = interestPosts;
+      } else {
+        const excludeIds = new Set(interestPosts.map((p: any) => p.id));
+        const remainingLimit = limit + 1 - interestPosts.length;
+
+        const fallbackWhere = {
+          channel: channelValue,
+          id: {
+            notIn: Array.from(excludeIds),
+            ...(cursorPayload ? { lt: cursorPayload.id } : {})
+          }
+        };
+
+        const fallbackPosts = await prisma.post.findMany({
+          where: fallbackWhere,
+          orderBy: [{ id: "desc" as const }],
+          take: remainingLimit,
+          include: FEED_POST_INCLUDE
+        });
+
+        posts = [...interestPosts, ...fallbackPosts];
+      }
+    } else {
+      const where = {
+        channel: channelValue,
+        ...(cursorPayload ? { id: { lt: cursorPayload.id } } : {})
+      };
+
+      posts = await prisma.post.findMany({
+        where,
+        orderBy: [{ id: "desc" as const }],
+        take: limit + 1,
+        include: FEED_POST_INCLUDE
+      });
+    }
+  } else {
+    const orderBy =
+      mode === "trending"
+        ? [{ hotScore: "desc" as const }, { id: "desc" as const }]
+        : mode === "discover"
+          ? [{ commentsCount: "desc" as const }, { likesCount: "desc" as const }, { id: "desc" as const }]
+          : [{ id: "desc" as const }];
+
+    const where =
+      mode === "recommended"
         ? {
             channel: channelValue,
-            ...(cursorPayload
-              ? {
-                  OR: [
-                    { hotScore: { lt: cursorPayload.hotScore } },
-                    { hotScore: cursorPayload.hotScore, id: { lt: cursorPayload.id } }
-                  ]
-                }
-              : {})
+            ...(cursorPayload ? { id: { lt: cursorPayload.id } } : {})
           }
-        : {
-            channel: channelValue,
-            ...(cursorPayload
-              ? {
-                  OR: [
-                    { commentsCount: { lt: cursorPayload.commentsCount } },
-                    { commentsCount: cursorPayload.commentsCount, likesCount: { lt: cursorPayload.likesCount } },
-                    {
-                      commentsCount: cursorPayload.commentsCount,
-                      likesCount: cursorPayload.likesCount,
-                      id: { lt: cursorPayload.id }
-                    }
-                  ]
-                }
-              : {})
-          };
+        : mode === "trending"
+          ? {
+              channel: channelValue,
+              ...(cursorPayload
+                ? {
+                    OR: [
+                      { hotScore: { lt: cursorPayload.hotScore } },
+                      { hotScore: cursorPayload.hotScore, id: { lt: cursorPayload.id } }
+                    ]
+                  }
+                : {})
+            }
+          : {
+              channel: channelValue,
+              ...(cursorPayload
+                ? {
+                    OR: [
+                      { commentsCount: { lt: cursorPayload.commentsCount } },
+                      { commentsCount: cursorPayload.commentsCount, likesCount: { lt: cursorPayload.likesCount } },
+                      {
+                        commentsCount: cursorPayload.commentsCount,
+                        likesCount: cursorPayload.likesCount,
+                        id: { lt: cursorPayload.id }
+                      }
+                    ]
+                  }
+                : {})
+            };
 
-  const posts = await prisma.post.findMany({
-    where,
-    orderBy,
-    take: limit + 1,
-    include: FEED_POST_INCLUDE
-  });
+    posts = await prisma.post.findMany({
+      where,
+      orderBy,
+      take: limit + 1,
+      include: FEED_POST_INCLUDE
+    });
+  }
 
   const hasMore = posts.length > limit;
   const slice = hasMore ? posts.slice(0, limit) : posts;

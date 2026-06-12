@@ -9,7 +9,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import { getMe, login as apiLogin, logout as apiLogout, register as apiRegister, type LoginInput, type RegisterInput } from "@/api/auth";
+import { getMe, login as apiLogin, logout as apiLogout, register as apiRegister, type LoginInput, type RegisterInput, type AuthWithOnboardingPayload } from "@/api/auth";
 import { subscribeAuthEvent } from "@/lib/auth-events";
 import { parseApiError } from "@/lib/api-error";
 import type { User } from "@/types/models";
@@ -54,6 +54,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const payload = await apiLogin(input);
       setUser(payload.user);
+      if (!payload.onboarding?.completed) {
+        localStorage.removeItem("onboarding_dismissed");
+      }
       toast.success("登录成功，欢迎回来");
     } catch (error) {
       const parsed = parseApiError(error);
@@ -66,6 +69,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       const payload = await apiRegister(input);
       setUser(payload.user);
+      localStorage.removeItem("onboarding_dismissed");
       toast.success("注册成功，已自动登录");
     } catch (error) {
       const parsed = parseApiError(error);
@@ -78,6 +82,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     try {
       await apiLogout();
       setUser(null);
+      localStorage.removeItem("onboarding_dismissed");
       toast.success("已退出登录");
     } catch (error) {
       const parsed = parseApiError(error);

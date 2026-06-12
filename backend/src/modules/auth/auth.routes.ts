@@ -27,6 +27,8 @@ authRouter.post("/register", validateBody(registerSchema), async (req, res) => {
       avatarUrl: "/uploads/seed/avatar-1.svg",
       level: "会员V1",
       bio: "这个人很懒，还没有留下简介",
+      onboardingCompleted: false,
+      onboardingStep: 0,
       settings: {
         create: {}
       },
@@ -44,6 +46,10 @@ authRouter.post("/register", validateBody(registerSchema), async (req, res) => {
     user: {
       ...user,
       avatarUrl: withMediaPrefix(user.avatarUrl)
+    },
+    onboarding: {
+      completed: user.onboardingCompleted,
+      currentStep: user.onboardingStep
     }
   }, "注册成功", 201);
 });
@@ -82,6 +88,10 @@ authRouter.post("/login", validateBody(loginSchema), async (req, res) => {
       followersCount: user.followersCount,
       followingCount: user.followingCount,
       createdAt: user.createdAt
+    },
+    onboarding: {
+      completed: user.onboardingCompleted,
+      currentStep: user.onboardingStep
     }
   });
 });
@@ -112,6 +122,10 @@ authRouter.post("/refresh", async (req, res) => {
         followersCount: user.followersCount,
         followingCount: user.followingCount,
         createdAt: user.createdAt
+      },
+      onboarding: {
+        completed: user.onboardingCompleted,
+        currentStep: user.onboardingStep
       }
     });
   } catch {
@@ -150,6 +164,10 @@ authRouter.get("/me", async (req, res) => {
       followersCount: user.followersCount,
       followingCount: user.followingCount,
       createdAt: user.createdAt
+    },
+    onboarding: {
+      completed: user.onboardingCompleted,
+      currentStep: user.onboardingStep
     }
   });
 });
