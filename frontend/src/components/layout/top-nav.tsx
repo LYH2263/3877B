@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Home, MessageCircle, PenSquare, Search, Settings } from "lucide-react";
+import { Home, MessageCircle, PenSquare, Search, Settings, Trophy } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { fetchSearchSuggestions } from "@/api/discovery";
@@ -174,6 +174,11 @@ export function TopNav() {
           <Button variant={location.pathname === "/" ? "secondary" : "ghost"} size="icon" asChild>
             <Link to="/" aria-label="首页">
               <Home className={iconClass} />
+            </Link>
+          </Button>
+          <Button variant={location.pathname === "/leaderboard" ? "secondary" : "ghost"} size="icon" asChild>
+            <Link to="/leaderboard" aria-label="排行榜">
+              <Trophy className={iconClass} />
             </Link>
           </Button>
           <Button variant={location.pathname.startsWith("/messages") ? "secondary" : "ghost"} size="icon" asChild>

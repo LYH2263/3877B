@@ -15,6 +15,7 @@ import MessagesPage from "@/pages/messages";
 import SettingsPage from "@/pages/settings";
 import PostDetailPage from "@/pages/post";
 import CreatorCenterPage from "@/pages/creator-center";
+import LeaderboardPage from "@/pages/leaderboard";
 import { TopNav } from "@/components/layout/top-nav";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
@@ -79,6 +80,7 @@ export default function App() {
         />
         <Route path="/u/:id" element={<ProfilePage />} />
         <Route path="/topic/:topicId" element={<TopicPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

@@ -19,6 +19,7 @@ import { settingsRouter } from "./modules/settings/settings.routes";
 import { topicsRouter } from "./modules/topics/topics.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { messagesRouter } from "./modules/messages/messages.routes";
+import { leaderboardRouter } from "./modules/leaderboard/leaderboard.routes";
 import { ok } from "./utils/response";
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/messages", messagesRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/creator", creatorRouter);
+app.use("/api", leaderboardRouter);
 
 app.use(notFound);
 app.use(errorHandler);

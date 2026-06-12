@@ -1,5 +1,8 @@
 export type FeedChannel = "hot" | "city";
 export type FeedMode = "recommended" | "trending" | "discover";
+export type LeaderboardTab = "posts" | "topics" | "creators";
+export type LeaderboardPeriod = "day" | "week" | "total";
+export type CreatorSortBy = "followers" | "interactions";
 export type ProfileFeedTab = "posts" | "media" | "likes";
 export type MessageTab = "all" | "unread" | "likes" | "comments" | "reposts" | "follows";
 export type NotificationType = "LIKE" | "COMMENT" | "REPOST" | "FOLLOW";
@@ -272,4 +275,46 @@ export interface CreatorDashboardPayload {
   };
   trend: CreatorTrendPoint[];
   topPosts: CreatorTopPost[];
+}
+
+export interface LeaderboardCreator {
+  id: number;
+  nickname: string;
+  avatarUrl: string | null;
+  level: string;
+  bio: string | null;
+  followersCount: number;
+  isFollowed: boolean;
+}
+
+export interface LeaderboardTopic {
+  id: number;
+  keyword: string;
+  tag: string;
+  heat: number;
+  postCount?: number;
+}
+
+export interface RankedPostItem {
+  rank: number;
+  rankChange: number | null;
+  hotScore: number;
+  hotScoreChange: number | null;
+  item: FeedItem;
+}
+
+export interface RankedTopicItem {
+  rank: number;
+  rankChange: number | null;
+  heat: number;
+  heatChange: number | null;
+  topic: LeaderboardTopic;
+}
+
+export interface RankedCreatorItem {
+  rank: number;
+  rankChange: number | null;
+  metricValue: number;
+  metricChange: number | null;
+  creator: LeaderboardCreator;
 }
