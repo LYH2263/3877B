@@ -1,5 +1,5 @@
-import { useEffect, useState, type ChangeEvent } from "react";
-import { ImagePlus, Upload, Video } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Edit3, ImagePlus, RotateCcw, Trash2, Upload, Video } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -21,36 +21,49 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
+import { ImageEditor } from "@/components/image-editor/image-editor";
 import { parseApiError } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 import type { FeedChannel } from "@/types/models";
 
 const composeSchema = z.object({
   content: z.string().min(3, "正文至少 3 个字符").max(1000, "正文最多 1000 个字符")
 });
 
+interface MediaItem {
+  file: File;
+  url: string;
+  originalFile: File;
+  isEdited: boolean;
+}
+
 export default function ComposePage() {
   const navigate = useNavigate();
   const [channel, setChannel] = useState<FeedChannel>("hot");
   const [content, setContent] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<Array<{ file: File; url: string }>>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [contentError, setContentError] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const previewUrlsRef = useRef<string[]>([]);
 
   useEffect(() => {
-    const next = files.map((file) => ({ file, url: URL.createObjectURL(file) }));
-    setPreviews(next);
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    previewUrlsRef.current = mediaItems.map((item) => item.url);
+  }, [mediaItems]);
 
+  useEffect(() => {
     return () => {
-      next.forEach((item) => URL.revokeObjectURL(item.url));
+      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [files]);
+  }, []);
 
   const onChangeFiles = (event: ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(event.target.files ?? []);
     if (selected.length === 0) {
-      setFiles([]);
+      setMediaItems([]);
       setMediaError(null);
       return;
     }
@@ -83,7 +96,78 @@ export default function ComposePage() {
     }
 
     setMediaError(null);
-    setFiles(selected);
+
+    const items: MediaItem[] = selected.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+      originalFile: file,
+      isEdited: false
+    }));
+    setMediaItems(items);
+  };
+
+  const handleEditImage = (index: number) => {
+    const item = mediaItems[index];
+    if (!item || !item.file.type.startsWith("image/")) return;
+
+    setEditingIndex(index);
+    setEditorOpen(true);
+  };
+
+  const handleConfirmEdit = (editedFile: File) => {
+    if (editingIndex === null) return;
+
+    setMediaItems((prev) => {
+      const next = [...prev];
+      const item = next[editingIndex];
+      if (item) {
+        if (item.url) {
+          URL.revokeObjectURL(item.url);
+        }
+        next[editingIndex] = {
+          ...item,
+          file: editedFile,
+          url: URL.createObjectURL(editedFile),
+          isEdited: true
+        };
+      }
+      return next;
+    });
+
+    toast.success("图片已更新");
+    setEditingIndex(null);
+  };
+
+  const handleResetImage = (index: number) => {
+    setMediaItems((prev) => {
+      const next = [...prev];
+      const item = next[index];
+      if (item && item.isEdited) {
+        if (item.url) {
+          URL.revokeObjectURL(item.url);
+        }
+        next[index] = {
+          ...item,
+          file: item.originalFile,
+          url: URL.createObjectURL(item.originalFile),
+          isEdited: false
+        };
+        toast.success("已重置为原图");
+      }
+      return next;
+    });
+  };
+
+  const handleRemoveMedia = (index: number) => {
+    setMediaItems((prev) => {
+      const next = [...prev];
+      const item = next[index];
+      if (item && item.url) {
+        URL.revokeObjectURL(item.url);
+      }
+      next.splice(index, 1);
+      return next;
+    });
   };
 
   const onSubmit = async () => {
@@ -98,6 +182,8 @@ export default function ComposePage() {
     }
 
     setContentError(null);
+
+    const files = mediaItems.map((item) => item.file);
 
     try {
       setSubmitting(true);
@@ -173,15 +259,79 @@ export default function ComposePage() {
             </label>
             <input id="media" type="file" accept="image/*,video/*" multiple className="hidden" onChange={onChangeFiles} />
 
-            {previews.length > 0 ? (
-              <div className="grid grid-cols-3 gap-2">
-                {previews.map((preview) =>
-                  preview.file.type.startsWith("video/") ? (
-                    <video key={preview.url} src={preview.url} className="h-32 w-full rounded-lg border border-slate-200 object-cover" controls />
-                  ) : (
-                    <img key={preview.url} src={preview.url} alt="预览" className="h-32 w-full rounded-lg border border-slate-200 object-cover" />
-                  )
-                )}
+            {mediaItems.length > 0 ? (
+              <div className="grid grid-cols-3 gap-3">
+                {mediaItems.map((item, index) => (
+                  <div key={index} className="group relative">
+                    {item.file.type.startsWith("video/") ? (
+                      <video
+                        src={item.url}
+                        className="h-32 w-full rounded-lg border border-slate-200 object-cover"
+                        controls
+                      />
+                    ) : (
+                      <img
+                        src={item.url}
+                        alt="预览"
+                        className={cn(
+                          "h-32 w-full rounded-lg border object-cover transition-all",
+                          item.isEdited
+                            ? "border-brand-400 ring-2 ring-brand-200"
+                            : "border-slate-200"
+                        )}
+                      />
+                    )}
+                    {item.file.type.startsWith("image/") && (
+                      <>
+                        <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 rounded-lg">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditImage(index)}
+                            className="h-8 px-2 bg-white/90 text-slate-700 hover:bg-white"
+                          >
+                            <Edit3 className="h-4 w-4 mr-1" />
+                            编辑
+                          </Button>
+                          {item.isEdited && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResetImage(index)}
+                              className="h-8 px-2 bg-white/90 text-slate-700 hover:bg-white"
+                            >
+                              <RotateCcw className="h-4 w-4 mr-1" />
+                              重置
+                            </Button>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveMedia(index)}
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white hover:bg-red-600 opacity-0 transition-opacity group-hover:opacity-100 shadow-md"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                        {item.isEdited && (
+                          <span className="absolute top-2 left-2 rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-medium text-white">
+                            已编辑
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {item.file.type.startsWith("video/") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveMedia(index)}
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white hover:bg-red-600 opacity-0 transition-opacity group-hover:opacity-100 shadow-md"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="flex gap-2 text-xs text-slate-500">
@@ -219,6 +369,15 @@ export default function ComposePage() {
           </div>
         </CardContent>
       </Card>
+
+      {editingIndex !== null && mediaItems[editingIndex] && (
+        <ImageEditor
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          originalFile={mediaItems[editingIndex].originalFile}
+          onConfirm={handleConfirmEdit}
+        />
+      )}
     </main>
   );
 }
