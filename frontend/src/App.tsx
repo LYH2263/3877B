@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/context/auth-context";
+import { VideoPlaybackProvider } from "@/context/video-playback-context";
 import DiscoveryPage from "@/pages/index";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -31,6 +32,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
+    <VideoPlaybackProvider>
     <div className="min-h-screen">
       <TopNav />
       <Routes>
@@ -76,5 +78,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
+    </VideoPlaybackProvider>
   );
 }

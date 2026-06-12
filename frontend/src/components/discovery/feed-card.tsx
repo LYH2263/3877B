@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Heart, MessageCircle, Repeat2, Send } from "
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
+import { VideoPlayer } from "@/components/video-player/video-player";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,11 +64,7 @@ function MediaBlock({
   }
 
   if (mediaItems.length === 1 && mediaItems[0].type === "video") {
-    return (
-      <div className="overflow-hidden rounded-xl border border-slate-200">
-        <video className="max-h-[420px] w-full bg-black" controls preload="metadata" src={mediaItems[0].url} />
-      </div>
-    );
+    return <VideoPlayer src={mediaItems[0].url} autoPauseOnLeave />;
   }
 
   const columns = mediaItems.length >= 3 ? "grid-cols-3" : "grid-cols-2";
@@ -76,13 +73,7 @@ function MediaBlock({
     <div className={`grid gap-2 ${columns}`}>
       {mediaItems.map((media) =>
         media.type === "video" ? (
-          <video
-            key={media.id}
-            className="h-40 w-full rounded-lg border border-slate-200 object-cover bg-black"
-            controls
-            preload="metadata"
-            src={media.url}
-          />
+          <VideoPlayer key={media.id} src={media.url} className="h-40" autoPauseOnLeave />
         ) : (
           <button
             key={media.id}
