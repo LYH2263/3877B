@@ -55,6 +55,8 @@ model User {
   notificationsReceived Notification[]       @relation("NotificationTarget")
   notificationsSent     Notification[]       @relation("NotificationActor")
   recommendationItems RecommendationItem[]
+  checkInRecords      CheckInRecord[]
+  points              UserPoints?
 
   @@index([nickname])
   @@index([onboardingCompleted])
@@ -173,14 +175,15 @@ model Follow {
 }
 
 model Topic {
-  id        Int        @id @default(autoincrement())
+  id        Int              @id @default(autoincrement())
   rank      Int
-  keyword   String     @unique
+  keyword   String           @unique
   heat      Int
   tag       String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   posts     PostTopic[]
+  interests UserInterest[]
 }
 
 model PostTopic {
@@ -275,4 +278,29 @@ model SensitiveWordHit {
 
   @@index([level, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+}
+
+model CheckInRecord {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  checkInDate     DateTime
+  pointsEarned    Int
+  streakDays      Int
+  bonusLevel      Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, checkInDate])
+  @@index([userId, checkInDate(sort: Desc)])
+}
+
+model UserPoints {
+  userId           Int   @id
+  totalPoints      Int   @default(0)
+  currentStreak    Int   @default(0)
+  longestStreak    Int   @default(0)
+  totalCheckInDays Int   @default(0)
+  lastCheckInDate  DateTime?
+  updatedAt        DateTime @updatedAt
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

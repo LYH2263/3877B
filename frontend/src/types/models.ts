@@ -318,3 +318,53 @@ export interface RankedCreatorItem {
   metricChange: number | null;
   creator: LeaderboardCreator;
 }
+
+export interface BonusTier {
+  streakThreshold: number;
+  bonusPoints: number;
+  label: string;
+}
+
+export interface CheckInDayRecord {
+  date: string;
+  checkedIn: boolean;
+  isToday: boolean;
+  pointsEarned: number;
+  streakDays: number;
+}
+
+export interface CheckInNextBonus {
+  threshold: number;
+  bonusPoints: number;
+  label: string;
+  daysUntilNext: number;
+}
+
+export interface CheckInStatus {
+  todayCheckedIn: boolean;
+  currentStreak: number;
+  longestStreak: number;
+  totalPoints: number;
+  totalCheckInDays: number;
+  lastCheckInDate: string | null;
+  monthRecords: CheckInDayRecord[];
+  nextBonus: CheckInNextBonus | null;
+}
+
+export interface CheckInResult {
+  success: boolean;
+  alreadyCheckedIn: boolean;
+  pointsEarned: number;
+  streakDays: number;
+  bonusLevel: number;
+  bonusLabel: string;
+  totalPoints: number;
+  totalCheckInDays: number;
+  longestStreak: number;
+}
+
+export interface CheckInConfig {
+  basePoints: number;
+  bonusTiers: BonusTier[];
+  timezoneOffset: number;
+}

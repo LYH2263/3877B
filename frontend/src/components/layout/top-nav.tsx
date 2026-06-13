@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Home, MessageCircle, PenSquare, Search, Settings, Trophy } from "lucide-react";
+import { CalendarCheck, Home, MessageCircle, PenSquare, Search, Settings, Trophy } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { fetchSearchSuggestions } from "@/api/discovery";
@@ -179,6 +179,11 @@ export function TopNav() {
           <Button variant={location.pathname === "/leaderboard" ? "secondary" : "ghost"} size="icon" asChild>
             <Link to="/leaderboard" aria-label="排行榜">
               <Trophy className={iconClass} />
+            </Link>
+          </Button>
+          <Button variant={location.pathname === "/creator-center" ? "secondary" : "ghost"} size="icon" asChild>
+            <Link to="/creator-center" aria-label="签到">
+              <CalendarCheck className={iconClass} />
             </Link>
           </Button>
           <Button variant={location.pathname.startsWith("/messages") ? "secondary" : "ghost"} size="icon" asChild>

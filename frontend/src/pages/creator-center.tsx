@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { fetchCreatorDashboard } from "@/api/creator";
+import { CheckInPanel } from "@/components/checkin/checkin-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCount } from "@/lib/format";
@@ -84,11 +85,18 @@ export default function CreatorCenterPage() {
   }
 
   if (!payload) {
-    return <main className="mx-auto mt-10 w-full max-w-6xl px-4 text-center text-slate-500">暂无可展示的数据</main>;
+    return (
+      <main className="mx-auto mt-6 w-full max-w-6xl space-y-4 px-4 pb-12">
+        <CheckInPanel />
+        <div className="text-center py-10 text-slate-500">暂无可展示的数据</div>
+      </main>
+    );
   }
 
   return (
     <main className="mx-auto mt-6 w-full max-w-6xl space-y-4 px-4 pb-12">
+      <CheckInPanel />
+
       <Card className="overflow-hidden border-brand-100 bg-gradient-to-r from-white to-brand-50/40">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
           <div>

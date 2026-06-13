@@ -21,6 +21,7 @@ import { usersRouter } from "./modules/users/users.routes";
 import { messagesRouter } from "./modules/messages/messages.routes";
 import { leaderboardRouter } from "./modules/leaderboard/leaderboard.routes";
 import { sensitiveWordsRouter } from "./modules/sensitive-words/sensitive-words.routes";
+import { checkInRouter } from "./modules/checkin/checkin.routes";
 import { ok } from "./utils/response";
 import { initSensitiveFilter } from "./utils/sensitive-words";
 import { loadSensitiveWords } from "./modules/sensitive-words/sensitive-word.service";
@@ -56,6 +57,7 @@ app.use("/api/settings", settingsRouter);
 app.use("/api/creator", creatorRouter);
 app.use("/api", leaderboardRouter);
 app.use("/api/sensitive-words", sensitiveWordsRouter);
+app.use("/api/checkin", checkInRouter);
 
 app.use(notFound);
 app.use(errorHandler);
