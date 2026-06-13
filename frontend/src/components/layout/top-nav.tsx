@@ -325,7 +325,7 @@ export function TopNav() {
                     </div>
                   ) : null}
                 </div>
-              ) : null}
+              )}
             </div>
           ) : null}
         </div>
