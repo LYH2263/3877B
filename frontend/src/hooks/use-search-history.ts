@@ -20,6 +20,14 @@ function writeHistory(items: string[]) {
   window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
 }
 
+// Cache the parsed snapshot so useSyncExternalStore receives a stable
+// reference unless the underlying stored value actually changes. Without
+// this, getSnapshot would return a brand-new array on every call, causing
+// an infinite render loop ("getSnapshot should be cached" / "Maximum update
+// depth exceeded").
+let cachedRaw: string | null = null;
+let cachedHistory: string[] = [];
+
 let listeners: Array<() => void> = [];
 
 function subscribe(listener: () => void) {
@@ -35,7 +43,20 @@ function subscribe(listener: () => void) {
 }
 
 function getSnapshot(): string[] {
-  return readHistory();
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(STORAGE_KEY);
+  } catch {
+    raw = null;
+  }
+
+  if (raw === cachedRaw) {
+    return cachedHistory;
+  }
+
+  cachedRaw = raw;
+  cachedHistory = readHistory();
+  return cachedHistory;
 }
 
 function getServerSnapshot(): string[] {
