@@ -17,6 +17,7 @@ import { CreatorCenterPanel } from "@/components/discovery/creator-center-panel"
 import { FeedCard } from "@/components/discovery/feed-card";
 import { HotSearchPanel } from "@/components/discovery/hot-search-panel";
 import { RecommendedUsersPanel } from "@/components/discovery/recommended-users-panel";
+import { RelatedPosts } from "@/components/discovery/related-posts";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -246,6 +247,9 @@ export default function PostDetailPage() {
               });
             }}
           />
+          <div className="mt-4">
+            <RelatedPosts postId={postId} />
+          </div>
         </section>
 
         <aside className="hidden lg:block">

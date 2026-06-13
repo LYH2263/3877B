@@ -197,3 +197,25 @@ export async function fetchSensitiveWords(level?: "forbidden" | "warning"): Prom
   });
   return data.data.items;
 }
+
+export interface RelatedPostsResponse {
+  items: FeedItem[];
+  isFallback: boolean;
+  hasMore: boolean;
+  nextOffset: number | null;
+  seed: number;
+}
+
+export async function fetchRelatedPosts(
+  postId: number,
+  options?: { limit?: number; offset?: number; seed?: number }
+): Promise<RelatedPostsResponse> {
+  const { data } = await apiClient.get<ApiResponse<RelatedPostsResponse>>(`/posts/${postId}/related`, {
+    params: {
+      limit: options?.limit ?? 8,
+      offset: options?.offset ?? 0,
+      seed: options?.seed
+    }
+  });
+  return data.data;
+}

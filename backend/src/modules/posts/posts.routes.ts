@@ -11,7 +11,7 @@ import { prisma } from "../../config/prisma";
 import { requireAuth } from "../../middleware/auth";
 import { decodeCursor, encodeCursor } from "../../utils/cursor";
 import { fail, ok } from "../../utils/response";
-import { toSingleFeedItem } from "./post.presenter";
+import { FEED_POST_INCLUDE, toFeedItems, toSingleFeedItem } from "./post.presenter";
 import { withMediaPrefix } from "../../utils/post-mapper";
 import { createNotificationIfAllowed } from "../messages/notification.service";
 import { recordSensitiveHit, validateContent } from "../sensitive-words/sensitive-word.service";
@@ -521,4 +521,226 @@ postsRouter.post("/:postId/comments", requireAuth, async (req, res) => {
     validation.warningWords.length > 0 ? `评论成功（${validation.message}）` : "评论成功",
     201
   );
+});
+
+const relatedPostsQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(12).default(8),
+  offset: z.coerce.number().min(0).default(0),
+  seed: z.coerce.number().optional()
+});
+
+postsRouter.get("/:postId/related", async (req, res) => {
+  const postId = Number(req.params.postId);
+  if (!Number.isFinite(postId)) {
+    fail(res, 400, "无效的动态ID");
+    return;
+  }
+
+  const { limit, offset, seed } = relatedPostsQuerySchema.parse(req.query);
+  const currentUserId = req.auth?.userId;
+  const randomSeed = seed ?? Math.floor(Math.random() * 1000000);
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: {
+      topics: {
+        include: { topic: true }
+      }
+    }
+  });
+
+  if (!post) {
+    fail(res, 404, "动态不存在");
+    return;
+  }
+
+  const topicIds = post.topics.map((pt) => pt.topicId);
+  const authorId = post.authorId;
+
+  let candidatePosts: Array<{
+    id: number;
+    authorId: number;
+    sharedTopicCount: number;
+    isSameAuthor: boolean;
+    hotScore: number;
+    createdAt: Date;
+  }> = [];
+
+  if (topicIds.length > 0) {
+    const topicPostIds = await prisma.postTopic.findMany({
+      where: {
+        topicId: { in: topicIds },
+        postId: { not: postId }
+      },
+      select: { postId: true, topicId: true }
+    });
+
+    const topicCountMap = new Map<number, number>();
+    topicPostIds.forEach((item) => {
+      topicCountMap.set(item.postId, (topicCountMap.get(item.postId) ?? 0) + 1);
+    });
+
+    const topicPosts = await prisma.post.findMany({
+      where: {
+        id: { in: Array.from(topicCountMap.keys()) }
+      },
+      select: {
+        id: true,
+        authorId: true,
+        hotScore: true,
+        createdAt: true
+      }
+    });
+
+    candidatePosts = topicPosts.map((p) => ({
+      id: p.id,
+      authorId: p.authorId,
+      sharedTopicCount: topicCountMap.get(p.id) ?? 0,
+      isSameAuthor: p.authorId === authorId,
+      hotScore: p.hotScore,
+      createdAt: p.createdAt
+    }));
+  }
+
+  const sameAuthorPosts = await prisma.post.findMany({
+    where: {
+      authorId,
+      id: { not: postId }
+    },
+    select: {
+      id: true,
+      authorId: true,
+      hotScore: true,
+      createdAt: true
+    }
+  });
+
+  const existingIds = new Set(candidatePosts.map((p) => p.id));
+  sameAuthorPosts.forEach((p) => {
+    if (!existingIds.has(p.id)) {
+      candidatePosts.push({
+        id: p.id,
+        authorId: p.authorId,
+        sharedTopicCount: 0,
+        isSameAuthor: true,
+        hotScore: p.hotScore,
+        createdAt: p.createdAt
+      });
+      existingIds.add(p.id);
+    } else {
+      const idx = candidatePosts.findIndex((cp) => cp.id === p.id);
+      if (idx !== -1) {
+        candidatePosts[idx].isSameAuthor = true;
+      }
+    }
+  });
+
+  const hasRelatedCandidates = candidatePosts.length > 0;
+
+  if (candidatePosts.length < limit * 2) {
+    const excludeIds = new Set([postId, ...candidatePosts.map((p) => p.id)]);
+    const hotPosts = await prisma.post.findMany({
+      where: {
+        id: { notIn: Array.from(excludeIds) }
+      },
+      orderBy: [{ hotScore: "desc" }, { id: "desc" }],
+      take: limit * 3,
+      select: {
+        id: true,
+        authorId: true,
+        hotScore: true,
+        createdAt: true
+      }
+    });
+
+    hotPosts.forEach((p) => {
+      if (!existingIds.has(p.id)) {
+        candidatePosts.push({
+          id: p.id,
+          authorId: p.authorId,
+          sharedTopicCount: 0,
+          isSameAuthor: false,
+          hotScore: p.hotScore,
+          createdAt: p.createdAt
+        });
+        existingIds.add(p.id);
+      }
+    });
+  }
+
+  function seededRandom(seedValue: number, index: number) {
+    const x = Math.sin(seedValue + index * 9999) * 10000;
+    return x - Math.floor(x);
+  }
+
+  candidatePosts.sort((a, b) => {
+    if (a.sharedTopicCount !== b.sharedTopicCount) {
+      return b.sharedTopicCount - a.sharedTopicCount;
+    }
+    if (a.isSameAuthor !== b.isSameAuthor) {
+      return a.isSameAuthor ? -1 : 1;
+    }
+    const scoreA = a.hotScore * (0.9 + seededRandom(randomSeed, a.id) * 0.2);
+    const scoreB = b.hotScore * (0.9 + seededRandom(randomSeed, b.id) * 0.2);
+    return scoreB - scoreA;
+  });
+
+  const authorCountMap = new Map<number, number>();
+  const filteredPosts: typeof candidatePosts = [];
+  const maxSameAuthor = Math.max(1, Math.floor(limit / 3));
+
+  for (const post of candidatePosts) {
+    const authorPostCount = authorCountMap.get(post.authorId) ?? 0;
+    if (authorPostCount >= maxSameAuthor && filteredPosts.length < limit) {
+      continue;
+    }
+    filteredPosts.push(post);
+    authorCountMap.set(post.authorId, authorPostCount + 1);
+    if (filteredPosts.length >= limit + offset) {
+      break;
+    }
+  }
+
+  const paginatedPosts = filteredPosts.slice(offset, offset + limit);
+  const hasMore = filteredPosts.length > offset + limit;
+
+  let posts: any[] = [];
+  let isFallback = false;
+
+  if (paginatedPosts.length > 0 && hasRelatedCandidates) {
+    posts = await prisma.post.findMany({
+      where: {
+        id: { in: paginatedPosts.map((p) => p.id) }
+      },
+      include: FEED_POST_INCLUDE
+    });
+
+    const orderMap = new Map(paginatedPosts.map((p, idx) => [p.id, idx]));
+    posts.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+  } else {
+    isFallback = true;
+    const excludeIds = new Set([postId]);
+    posts = await prisma.post.findMany({
+      where: {
+        id: { notIn: Array.from(excludeIds) }
+      },
+      orderBy: [{ hotScore: "desc" }, { id: "desc" }],
+      skip: offset,
+      take: limit + 1,
+      include: FEED_POST_INCLUDE
+    });
+  }
+
+  const hasMorePosts = hasMore || posts.length > limit;
+  const finalPosts = posts.length > limit ? posts.slice(0, limit) : posts;
+
+  const items = await toFeedItems(finalPosts, currentUserId);
+
+  ok(res, {
+    items,
+    isFallback,
+    hasMore: hasMorePosts,
+    nextOffset: hasMorePosts ? offset + limit : null,
+    seed: randomSeed
+  });
 });
