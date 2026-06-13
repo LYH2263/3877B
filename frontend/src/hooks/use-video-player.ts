@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { useVideoPlayback } from "@/context/video-playback-context";
+import { useVideoPlayback, type PlaybackHandle } from "@/context/video-playback-context";
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const THROTTLE_MS = 250;
@@ -135,8 +135,8 @@ export function useVideoPlayer(src: string): UseVideoPlayerReturn {
   const [error, setError] = useState<string | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
 
-  const registerPlayback = useVideoPlayback(instanceId);
-  const playbackHandleRef = useRef<{ requestPlay: () => void; notifyPause: () => void; cleanup: () => void } | null>(null);
+  const playback = useVideoPlayback();
+  const playbackHandleRef = useRef<PlaybackHandle | null>(null);
 
   const throttledTimeUpdate = useMemo(
     () =>
@@ -151,18 +151,16 @@ export function useVideoPlayer(src: string): UseVideoPlayerReturn {
   );
 
   useLayoutEffect(() => {
-    const init = registerPlayback(() => {
+    const handle = playback.register(instanceId, () => {
       videoRef.current?.pause();
       setPlaying(false);
     });
-    playbackHandleRef.current = init(() => {
-      videoRef.current?.pause();
-      setPlaying(false);
-    });
+    playbackHandleRef.current = handle;
     return () => {
-      playbackHandleRef.current?.cleanup();
+      handle.cleanup();
+      playbackHandleRef.current = null;
     };
-  }, [registerPlayback]);
+  }, [playback, instanceId]);
 
   useEffect(() => {
     const video = videoRef.current;
