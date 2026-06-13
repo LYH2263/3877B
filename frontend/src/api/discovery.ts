@@ -130,6 +130,13 @@ export async function fetchProfileFeed(
   return data.data;
 }
 
+export async function fetchHotSearch(limit = 20): Promise<TrendingTopic[]> {
+  const { data } = await apiClient.get<ApiResponse<TrendingTopic[]>>("/search/hot", {
+    params: { limit }
+  });
+  return data.data;
+}
+
 export async function fetchSearchSuggestions(query: string, limit = 8): Promise<SearchSuggestion[]> {
   const { data } = await apiClient.get<ApiResponse<SearchSuggestion[]>>("/search/suggest", {
     params: {

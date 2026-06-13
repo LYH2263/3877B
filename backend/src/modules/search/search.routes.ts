@@ -12,12 +12,25 @@ const searchQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(30).default(20)
 });
 
+const hotQuerySchema = z.object({
+  limit: z.coerce.number().min(1).max(50).default(20)
+});
+
 const suggestQuerySchema = z.object({
   q: z.string().trim().min(1, "请输入搜索关键词"),
   limit: z.coerce.number().min(1).max(20).default(8)
 });
 
 export const searchRouter = Router();
+
+searchRouter.get("/search/hot", async (_req, res) => {
+  const { limit } = hotQuerySchema.parse(_req.query);
+  const topics = await prisma.topic.findMany({
+    orderBy: [{ rank: "asc" }, { heat: "desc" }],
+    take: limit
+  });
+  ok(res, topics);
+});
 
 searchRouter.get("/search/suggest", async (req, res) => {
   const { q, limit } = suggestQuerySchema.parse(req.query);

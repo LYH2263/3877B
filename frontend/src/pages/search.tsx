@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle, Search } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSearchHistory } from "@/hooks/use-search-history";
 import { formatRelativeTime } from "@/lib/format";
 import { parseApiError } from "@/lib/api-error";
 import type { SearchResultPayload } from "@/types/models";
@@ -27,6 +28,8 @@ export default function SearchPage() {
   const keyword = (searchParams.get("q") ?? "").trim();
   const rawType = searchParams.get("type") ?? "all";
   const type = SEARCH_TYPES.some((item) => item.value === rawType) ? (rawType as SearchType) : "all";
+  const { add: addHistory } = useSearchHistory();
+  const lastRecordedKeyword = useRef("");
 
   const [result, setResult] = useState<SearchResultPayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,6 +38,11 @@ export default function SearchPage() {
     if (!keyword) {
       setResult(null);
       return;
+    }
+
+    if (keyword !== lastRecordedKeyword.current) {
+      lastRecordedKeyword.current = keyword;
+      addHistory(keyword);
     }
 
     const run = async () => {
@@ -51,7 +59,7 @@ export default function SearchPage() {
     };
 
     void run();
-  }, [keyword, type]);
+  }, [keyword, type, addHistory]);
 
   const total = useMemo(() => {
     if (!result) {
